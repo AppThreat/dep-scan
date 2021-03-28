@@ -71,7 +71,19 @@ def metadata_from_registry(registry_type, scoped_pkgs, pkg_list, private_ns=None
                 continue
             progress.update(task, description=f"Checking {key}")
             try:
-                r = requests.get(url=lookup_url, timeout=config.request_timeout_sec)
+                # Allow retrying up to (max_timeout_attempts - 1) times
+                # (note that the first attempt is not a retry)
+                # if the reason for failure is timeout
+                for attempt in range(config.max_timeout_attempts):
+                    # Non-timeout errors will get caught by the enclosing try-except
+                    # and will contribute towards the failure count.
+                    try:
+                        r = requests.get(url=lookup_url, timeout=config.request_timeout_sec)
+                        # If no error, do not retry.
+                        break
+                    except requests.Timeout:
+                        continue
+
                 json_data = r.json()
                 # Npm returns this error if the package is not found
                 if (
